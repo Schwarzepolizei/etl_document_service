@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+pydantic
+python-multipart
+pillow
+opencv-python
+numpy
+pandas
+openpyxl
+python-docx
+pdfplumber
+pymupdf
+pytesseract
