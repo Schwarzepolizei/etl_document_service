@@ -7,5 +7,10 @@ router = APIRouter()
 
 @router.post("/process", response_model=ETLResponse)
 async def process_file(file: UploadFile = File(...)):
-    result = run_etl(file.filename)
+    content = await file.read()
+
+    result = run_etl(
+        file_name=file.filename,
+        file_bytes=content
+    )
     return result
