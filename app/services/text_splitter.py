@@ -22,6 +22,31 @@ def build_blocks_from_text(text: str) -> list[Block]:
     return blocks
 
 
+def build_blocks_from_pages(page_texts: list[str]) -> list[Block]:
+    blocks = []
+    block_counter = 1
+
+    for page_num, page_text in enumerate(page_texts, start=1):
+        paragraphs = [p.strip() for p in page_text.split("\n\n") if p.strip()]
+
+        for paragraph in paragraphs:
+            block_type = "title" if block_counter == 1 and len(paragraph) < 120 else "paragraph"
+
+            blocks.append(
+                Block(
+                    block_id=f"b{block_counter}",
+                    page_num=page_num,
+                    block_order=block_counter,
+                    block_type=block_type,
+                    text=paragraph,
+                    confidence=1.0,
+                )
+            )
+            block_counter += 1
+
+    return blocks
+
+
 def build_chunks_from_blocks(blocks: list[Block], max_chars: int = 1000) -> list[Chunk]:
     chunks = []
     current_text = []
