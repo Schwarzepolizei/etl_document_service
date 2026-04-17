@@ -38,7 +38,9 @@ class DocumentMeta(BaseModel):
     language: List[str]
     page_count: int
     is_scanned: bool
-    has_text_layer: bool
+
+    extraction_method: str 
+    text_extracted: bool
 
 
 class SourceMeta(BaseModel):
