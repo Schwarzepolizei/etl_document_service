@@ -13,6 +13,7 @@ from app.schemas.document import (
 
 from app.parsers.pdf_parser import parse_pdf
 from app.parsers.image_parser import parse_image
+from app.parsers.pdf_ocr_parser import parse_scanned_pdf
 from app.services.text_splitter import build_blocks_from_text, build_chunks_from_blocks, build_blocks_from_pages
 from app.utils.file_types import detect_file_type
 
@@ -49,7 +50,14 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
     elif file_type == "pdf":
         try:
             page_texts, page_count, has_text_layer = parse_pdf(file_bytes)
-            is_scanned = not has_text_layer
+
+            if has_text_layer:
+                is_scanned = False
+            else:
+                page_texts, page_count = parse_scanned_pdf(file_bytes)
+                is_scanned = True
+                has_text_layer = bool(any(p.strip() for p in page_texts))
+
             full_text = "\n\n".join([p for p in page_texts if p.strip()])
 
             pages = [
