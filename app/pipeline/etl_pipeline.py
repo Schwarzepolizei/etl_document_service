@@ -12,6 +12,7 @@ from app.schemas.document import (
 )
 
 from app.parsers.pdf_parser import parse_pdf
+from app.parsers.image_parser import parse_image
 from app.services.text_splitter import build_blocks_from_text, build_chunks_from_blocks, build_blocks_from_pages
 from app.utils.file_types import detect_file_type
 
@@ -60,6 +61,25 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
             ]
 
             blocks = build_blocks_from_pages(page_texts)
+
+        except Exception as e:
+            errors.append(str(e))
+
+    elif file_type == "image":
+        try:
+            full_text, has_text = parse_image(file_bytes)
+            page_count = 1
+            is_scanned = True
+            has_text_layer = has_text
+
+            pages = [
+                Page(
+                    page_num=1,
+                    text=full_text,
+                )
+            ]
+
+            blocks = build_blocks_from_text(full_text) if full_text else []
 
         except Exception as e:
             errors.append(str(e))
