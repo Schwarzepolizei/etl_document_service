@@ -2,7 +2,7 @@ import uuid
 from app.schemas.document import ETLResponse, SourceMeta, DocumentMeta, Content, Page, Block, Chunk, ProcessingInfo
 
 
-def run_etl(file_name: str) -> ETLResponse:
+def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
     doc_id = str(uuid.uuid4())
 
     text = "Это тестовый документ"
