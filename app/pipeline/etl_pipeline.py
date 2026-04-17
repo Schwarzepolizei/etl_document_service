@@ -10,6 +10,7 @@ from app.schemas.document import (
     Page,
     ProcessingInfo,
 )
+from app.parsers.pdf_parser import parse_pdf
 from app.services.text_splitter import build_blocks_from_text, build_chunks_from_blocks
 from app.utils.file_types import detect_file_type
 
@@ -24,10 +25,24 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
 
     if file_type == "txt":
         text = parse_txt(file_bytes)
+        page_count = 1
         is_scanned = False
         has_text_layer = True
+
+    elif file_type == "pdf":
+        try:
+            text, page_count, has_text_layer = parse_pdf(file_bytes)
+            is_scanned = not has_text_layer
+        except Exception as e:
+            text = ""
+            page_count = 0
+            is_scanned = False
+            has_text_layer = False
+            errors.append(str(e))
+
     else:
         text = "Формат пока не поддерживается"
+        page_count = 1
         warnings.append(f"Parser for file type '{file_type}' is not implemented yet.")
         is_scanned = False
         has_text_layer = False
@@ -45,7 +60,7 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
         ),
         document=DocumentMeta(
             language=["ru"],
-            page_count=1,
+            page_count=page_count,
             is_scanned=is_scanned,
             has_text_layer=has_text_layer,
         ),
@@ -53,9 +68,10 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
             full_text=text,
             pages=[
                 Page(
-                    page_num=1,
-                    text=text,
+                    page_num=i + 1,
+                    text=page_text,
                 )
+                for i, page_text in enumerate(text.split("\n\n"))
             ],
             blocks=blocks,
             chunks=chunks,
