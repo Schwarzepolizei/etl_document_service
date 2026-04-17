@@ -16,6 +16,7 @@ from app.parsers.image_parser import parse_image
 from app.parsers.pdf_ocr_parser import parse_scanned_pdf
 from app.parsers.docx_parser import parse_docx
 from app.services.text_splitter import build_blocks_from_text, build_chunks_from_blocks, build_blocks_from_pages
+from app.services.text_cleaner import clean_text
 from app.utils.file_types import detect_file_type
 
 
@@ -35,7 +36,7 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
     blocks = []
 
     if file_type == "txt":
-        full_text = parse_txt(file_bytes)
+        full_text = clean_text(parse_txt(file_bytes))
         page_count = 1
         is_scanned = False
         extraction_method = "native"
@@ -50,7 +51,7 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
 
     elif file_type == "docx":
         try:
-            full_text = parse_docx(file_bytes)
+            full_text = clean_text(parse_docx(file_bytes))
             page_count = 1
             is_scanned = False
             extraction_method = "native"
@@ -79,24 +80,26 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                 is_scanned = True
                 extraction_method = "ocr"
 
-            full_text = "\n\n".join([p for p in page_texts if p.strip()])
+            cleaned_pages = [clean_text(p) for p in page_texts]
+            full_text = "\n\n".join([p for p in cleaned_pages if p.strip()])
 
             pages = [
                 Page(
                     page_num=i + 1,
                     text=page_text,
                 )
-                for i, page_text in enumerate(page_texts)
+                for i, page_text in enumerate(cleaned_pages)
             ]
 
-            blocks = build_blocks_from_pages(page_texts)
+            blocks = build_blocks_from_pages(cleaned_pages)
 
         except Exception as e:
             errors.append(f"PDF processing error: {type(e).__name__}: {str(e)}")
 
     elif file_type == "image":
         try:
-            full_text, _ = parse_image(file_bytes)
+            raw_text, _ = parse_image(file_bytes)
+            full_text = clean_text(raw_text)
             page_count = 1
             is_scanned = True
             extraction_method = "ocr"
