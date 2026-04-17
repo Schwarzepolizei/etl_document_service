@@ -1,12 +1,24 @@
 from app.schemas.document import Block, Chunk
 
 
+def guess_block_type(paragraph: str, is_first: bool = False) -> str:
+    text = paragraph.strip()
+
+    if not text:
+        return "unknown"
+
+    if is_first and len(text) < 80 and "\n" not in text and text.count(".") <= 1:
+        return "title"
+
+    return "paragraph"
+
+
 def build_blocks_from_text(text: str) -> list[Block]:
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
     blocks = []
 
     for idx, paragraph in enumerate(paragraphs, start=1):
-        block_type = "title" if idx == 1 and len(paragraph) < 120 else "paragraph"
+        block_type = guess_block_type(paragraph, is_first=(idx == 1))
 
         blocks.append(
             Block(
@@ -30,7 +42,7 @@ def build_blocks_from_pages(page_texts: list[str]) -> list[Block]:
         paragraphs = [p.strip() for p in page_text.split("\n\n") if p.strip()]
 
         for paragraph in paragraphs:
-            block_type = "title" if block_counter == 1 and len(paragraph) < 120 else "paragraph"
+            block_type = guess_block_type(paragraph, is_first=(block_counter == 1))
 
             blocks.append(
                 Block(
