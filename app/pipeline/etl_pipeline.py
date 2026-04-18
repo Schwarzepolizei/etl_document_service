@@ -15,6 +15,7 @@ from app.parsers.pdf_parser import parse_pdf
 from app.parsers.image_parser import parse_image
 from app.parsers.pdf_ocr_parser import parse_scanned_pdf
 from app.parsers.docx_parser import parse_docx
+from app.services.ocr_extractor import build_ocr_line_blocks
 from app.services.text_splitter import build_blocks_from_text, build_chunks_from_blocks, build_blocks_from_pages
 from app.services.text_cleaner import clean_text
 from app.utils.file_types import detect_file_type
@@ -75,12 +76,13 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
             if has_text_layer:
                 is_scanned = False
                 extraction_method = "native"
+                cleaned_pages = [clean_text(p) for p in page_texts]
             else:
-                page_texts, page_count = parse_scanned_pdf(file_bytes)
+                page_texts, page_count, page_ocr_data = parse_scanned_pdf(file_bytes)
                 is_scanned = True
                 extraction_method = "ocr"
+                cleaned_pages = [clean_text(p) for p in page_texts]
 
-            cleaned_pages = [clean_text(p) for p in page_texts]
             full_text = "\n\n".join([p for p in cleaned_pages if p.strip()])
 
             pages = [
@@ -91,14 +93,27 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                 for i, page_text in enumerate(cleaned_pages)
             ]
 
-            blocks = build_blocks_from_pages(cleaned_pages)
+            if extraction_method == "ocr":
+                blocks = []
+                block_index = 1
+
+                for page_num, ocr_data in enumerate(page_ocr_data, start=1):
+                    page_blocks = build_ocr_line_blocks(
+                        ocr_data,
+                        page_num=page_num,
+                        start_block_index=block_index,
+                    )
+                    blocks.extend(page_blocks)
+                    block_index += len(page_blocks)
+            else:
+                blocks = build_blocks_from_pages(cleaned_pages)
 
         except Exception as e:
             errors.append(f"PDF processing error: {type(e).__name__}: {str(e)}")
 
     elif file_type == "image":
         try:
-            full_text, _, avg_conf = parse_image(file_bytes)
+            full_text, _, avg_conf, ocr_data = parse_image(file_bytes)
             page_count = 1
             is_scanned = True
             extraction_method = "ocr"
@@ -111,7 +126,7 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                 )
             ]
 
-            blocks = build_blocks_from_text(full_text) if full_text else []
+            blocks = build_ocr_line_blocks(ocr_data, page_num=1) if ocr_data else []
 
         except Exception as e:
             errors.append(f"Image processing error: {type(e).__name__}: {str(e)}")
