@@ -59,42 +59,76 @@ def build_blocks_from_pages(page_texts: list[str]) -> list[Block]:
     return blocks
 
 
-def build_chunks_from_blocks(blocks: list[Block], max_chars: int = 1000) -> list[Chunk]:
+def build_chunks_from_blocks(
+    blocks: list[Block],
+    max_chars: int = 1200,
+    soft_min_chars: int = 400,
+) -> list[Chunk]:
+    if not blocks:
+        return []
+
     chunks = []
-    current_text = []
-    current_ids = []
+    current_blocks = []
     chunk_order = 1
 
-    for block in blocks:
-        candidate_parts = current_text + [block.text]
-        candidate_text = "\n\n".join(candidate_parts)
+    def flush_chunk(block_group: list[Block], chunk_order: int) -> Chunk | None:
+        if not block_group:
+            return None
 
-        if len(candidate_text) <= max_chars:
-            current_text.append(block.text)
-            current_ids.append(block.block_id)
-        else:
-            if current_text:
-                chunks.append(
-                    Chunk(
-                        chunk_id=f"c{chunk_order}",
-                        chunk_order=chunk_order,
-                        block_ids=current_ids.copy(),
-                        text="\n\n".join(current_text),
-                    )
-                )
-                chunk_order += 1
+        texts = [b.text.strip() for b in block_group if b.text.strip()]
+        if not texts:
+            return None
 
-            current_text = [block.text]
-            current_ids = [block.block_id]
+        chunk_text = "\n\n".join(texts)
+        page_nums = sorted({b.page_num for b in block_group})
+        block_types = [b.block_type for b in block_group]
 
-    if current_text:
-        chunks.append(
-            Chunk(
-                chunk_id=f"c{chunk_order}",
-                chunk_order=chunk_order,
-                block_ids=current_ids.copy(),
-                text="\n\n".join(current_text),
-            )
+        return Chunk(
+            chunk_id=f"c{chunk_order}",
+            chunk_order=chunk_order,
+            block_ids=[b.block_id for b in block_group],
+            text=chunk_text,
+            page_span=page_nums,
+            block_types=block_types,
+            char_count=len(chunk_text),
         )
+
+    for block in blocks:
+        if not block.text.strip():
+            continue
+
+        candidate_blocks = current_blocks + [block]
+        candidate_text = "\n\n".join(b.text.strip() for b in candidate_blocks if b.text.strip())
+
+        if not current_blocks:
+            current_blocks.append(block)
+            continue
+
+        prev_block = current_blocks[-1]
+        page_changed = prev_block.page_num != block.page_num
+        is_title_block = block.block_type in {"title", "section_header"}
+        exceeds_limit = len(candidate_text) > max_chars
+
+        should_flush = False
+
+        if exceeds_limit:
+            should_flush = True
+        elif page_changed and len("\n\n".join(b.text for b in current_blocks)) >= soft_min_chars:
+            should_flush = True
+        elif is_title_block and len("\n\n".join(b.text for b in current_blocks)) >= soft_min_chars:
+            should_flush = True
+
+        if should_flush:
+            chunk = flush_chunk(current_blocks, chunk_order)
+            if chunk:
+                chunks.append(chunk)
+                chunk_order += 1
+            current_blocks = [block]
+        else:
+            current_blocks.append(block)
+
+    chunk = flush_chunk(current_blocks, chunk_order)
+    if chunk:
+        chunks.append(chunk)
 
     return chunks
