@@ -98,8 +98,7 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
 
     elif file_type == "image":
         try:
-            raw_text, _ = parse_image(file_bytes)
-            full_text = clean_text(raw_text)
+            full_text, _, avg_conf = parse_image(file_bytes)
             page_count = 1
             is_scanned = True
             extraction_method = "ocr"
@@ -108,6 +107,7 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                 Page(
                     page_num=1,
                     text=full_text,
+                    confidence=avg_conf,
                 )
             ]
 
