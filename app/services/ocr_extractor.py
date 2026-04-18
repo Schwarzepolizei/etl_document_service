@@ -1,6 +1,8 @@
 import pytesseract
 from pytesseract import Output
 
+from app.schemas.document import Block, BBox
+
 
 def extract_ocr_data(image, lang: str = "rus+eng", config: str = "--oem 3 --psm 6") -> list[dict]:
     data = pytesseract.image_to_data(
@@ -73,3 +75,55 @@ def compute_average_confidence(ocr_data: list[dict]) -> float | None:
         return None
 
     return round(sum(confs) / len(confs), 2)
+
+def build_ocr_line_blocks(ocr_data: list[dict], page_num: int = 1, start_block_index: int = 1) -> list[Block]:
+    if not ocr_data:
+        return []
+
+    lines = {}
+    for item in ocr_data:
+        key = (item["block_num"], item["par_num"], item["line_num"])
+        lines.setdefault(key, []).append(item)
+
+    blocks = []
+    block_index = start_block_index
+
+    for key in sorted(lines.keys()):
+        words = sorted(lines[key], key=lambda x: x["word_num"])
+
+        texts = [w["text"] for w in words if w["text"].strip()]
+        if not texts:
+            continue
+
+        line_text = " ".join(texts).strip()
+        if not line_text:
+            continue
+
+        x1 = min(w["left"] for w in words)
+        y1 = min(w["top"] for w in words)
+        x2 = max(w["left"] + w["width"] for w in words)
+        y2 = max(w["top"] + w["height"] for w in words)
+
+        confs = [w["conf"] for w in words if w["conf"] >= 0]
+        avg_conf = round(sum(confs) / len(confs), 2) if confs else None
+
+        blocks.append(
+            Block(
+                block_id=f"b{block_index}",
+                page_num=page_num,
+                block_order=block_index,
+                block_type="ocr_line",
+                text=line_text,
+                bbox=BBox(
+                    x1=float(x1),
+                    y1=float(y1),
+                    x2=float(x2),
+                    y2=float(y2),
+                ),
+                confidence=avg_conf,
+            )
+        )
+
+        block_index += 1
+
+    return blocks
