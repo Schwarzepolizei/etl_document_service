@@ -1,8 +1,12 @@
 from app.services.image_preprocessor import preprocess_image_for_ocr
-from app.services.ocr_extractor import extract_ocr_data, build_text_from_ocr_data, compute_average_confidence
+from app.services.ocr_extractor import (
+    extract_ocr_data,
+    build_text_from_ocr_data,
+    compute_average_confidence,
+)
 
 
-def parse_image(file_bytes: bytes) -> tuple[str, bool, float | None]:
+def parse_image(file_bytes: bytes) -> tuple[str, bool, float | None, list[dict]]:
     image = preprocess_image_for_ocr(file_bytes)
 
     ocr_data = extract_ocr_data(
@@ -15,4 +19,4 @@ def parse_image(file_bytes: bytes) -> tuple[str, bool, float | None]:
     avg_conf = compute_average_confidence(ocr_data)
     has_text = bool(text)
 
-    return text, has_text, avg_conf
+    return text, has_text, avg_conf, ocr_data
