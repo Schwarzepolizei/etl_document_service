@@ -1,3 +1,5 @@
+import re
+
 import pytesseract
 from pytesseract import Output
 
@@ -127,3 +129,56 @@ def build_ocr_line_blocks(ocr_data: list[dict], page_num: int = 1, start_block_i
         block_index += 1
 
     return blocks
+
+def is_noise_text(text: str) -> bool:
+    text = text.strip()
+
+    if not text:
+        return True
+
+    if len(text) <= 1:
+        return True
+
+    letters_or_digits = sum(ch.isalnum() for ch in text)
+    non_space_chars = sum(not ch.isspace() for ch in text)
+
+    if non_space_chars == 0:
+        return True
+
+    ratio = letters_or_digits / non_space_chars
+
+    if ratio < 0.4:
+        return True
+
+    if re.fullmatch(r"[\W_]+", text):
+        return True
+
+    return False
+
+
+def filter_ocr_data(
+    ocr_data: list[dict],
+    min_conf: float = 35.0,
+    min_text_len: int = 2,
+) -> list[dict]:
+    filtered = []
+
+    for item in ocr_data:
+        text = item["text"].strip()
+        conf = item["conf"]
+
+        if not text:
+            continue
+
+        if conf < min_conf:
+            continue
+
+        if len(text) < min_text_len and not text.isdigit():
+            continue
+
+        if is_noise_text(text):
+            continue
+
+        filtered.append(item)
+
+    return filtered
