@@ -182,3 +182,87 @@ def filter_ocr_data(
         filtered.append(item)
 
     return filtered
+
+def merge_ocr_lines_to_paragraphs(
+    line_blocks: list[Block],
+    y_gap_threshold: float = 20.0,
+    x_align_threshold: float = 60.0,
+) -> list[Block]:
+    if not line_blocks:
+        return []
+
+    sorted_blocks = sorted(
+        line_blocks,
+        key=lambda b: (b.page_num, b.bbox.y1 if b.bbox else 0, b.bbox.x1 if b.bbox else 0)
+    )
+
+    merged_blocks = []
+    current_group = []
+    paragraph_index = 1
+
+    def flush_group(group: list[Block], paragraph_index: int) -> Block | None:
+        if not group:
+            return None
+
+        texts = [b.text.strip() for b in group if b.text.strip()]
+        if not texts:
+            return None
+
+        text = " ".join(texts).strip()
+
+        x1 = min(b.bbox.x1 for b in group if b.bbox is not None)
+        y1 = min(b.bbox.y1 for b in group if b.bbox is not None)
+        x2 = max(b.bbox.x2 for b in group if b.bbox is not None)
+        y2 = max(b.bbox.y2 for b in group if b.bbox is not None)
+
+        confs = [b.confidence for b in group if b.confidence is not None]
+        avg_conf = round(sum(confs) / len(confs), 2) if confs else None
+
+        return Block(
+            block_id=f"b{paragraph_index}",
+            page_num=group[0].page_num,
+            block_order=paragraph_index,
+            block_type="ocr_paragraph",
+            text=text,
+            bbox=BBox(
+                x1=float(x1),
+                y1=float(y1),
+                x2=float(x2),
+                y2=float(y2),
+            ),
+            confidence=avg_conf,
+        )
+
+    for block in sorted_blocks:
+        if not current_group:
+            current_group.append(block)
+            continue
+
+        prev = current_group[-1]
+
+        if prev.bbox is None or block.bbox is None:
+            paragraph_block = flush_group(current_group, paragraph_index)
+            if paragraph_block:
+                merged_blocks.append(paragraph_block)
+                paragraph_index += 1
+            current_group = [block]
+            continue
+
+        same_page = prev.page_num == block.page_num
+        y_gap = block.bbox.y1 - prev.bbox.y2
+        x_align = abs(block.bbox.x1 - prev.bbox.x1)
+
+        if same_page and y_gap <= y_gap_threshold and x_align <= x_align_threshold:
+            current_group.append(block)
+        else:
+            paragraph_block = flush_group(current_group, paragraph_index)
+            if paragraph_block:
+                merged_blocks.append(paragraph_block)
+                paragraph_index += 1
+            current_group = [block]
+
+    paragraph_block = flush_group(current_group, paragraph_index)
+    if paragraph_block:
+        merged_blocks.append(paragraph_block)
+
+    return merged_blocks
