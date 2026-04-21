@@ -153,7 +153,10 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
     else:
         warnings.append(f"Parser for file type '{file_type}' is not implemented yet.")
 
-    chunks = build_chunks_from_blocks(blocks)
+    if extraction_method == "ocr":
+        chunks = build_chunks_from_blocks(blocks, mode="ocr")
+    else:
+        chunks = build_chunks_from_blocks(blocks, mode="native")
     duration_ms = int((time.time() - started) * 1000)
     text_extracted = bool(full_text.strip())
 
