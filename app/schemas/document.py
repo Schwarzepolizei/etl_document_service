@@ -35,6 +35,7 @@ class Page(BaseModel):
     width: Optional[int] = None
     height: Optional[int] = None
     confidence: Optional[float] = None
+    quality_score: Optional[float] = None
 
 
 class DocumentMeta(BaseModel):
