@@ -11,3 +11,4 @@ python-docx
 pdfplumber
 pymupdf
 pytesseract
+striprtf
