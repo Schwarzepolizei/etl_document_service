@@ -61,11 +61,17 @@ def build_blocks_from_pages(page_texts: list[str]) -> list[Block]:
 
 def build_chunks_from_blocks(
     blocks: list[Block],
-    max_chars: int = 1200,
-    soft_min_chars: int = 400,
+    mode: str = "native",
 ) -> list[Chunk]:
     if not blocks:
         return []
+
+    if mode == "ocr":
+        max_chars = 800
+        soft_min_chars = 250
+    else:
+        max_chars = 1400
+        soft_min_chars = 500
 
     chunks = []
     current_blocks = []
@@ -98,25 +104,31 @@ def build_chunks_from_blocks(
             continue
 
         candidate_blocks = current_blocks + [block]
-        candidate_text = "\n\n".join(b.text.strip() for b in candidate_blocks if b.text.strip())
+        candidate_text = "\n\n".join(b.text.strip() for b in candidate_blocks)
 
         if not current_blocks:
             current_blocks.append(block)
             continue
 
         prev_block = current_blocks[-1]
+
         page_changed = prev_block.page_num != block.page_num
-        is_title_block = block.block_type in {"title", "section_header"}
+        is_title = block.block_type in {"title", "section_header"}
+
         exceeds_limit = len(candidate_text) > max_chars
 
         should_flush = False
 
         if exceeds_limit:
             should_flush = True
-        elif page_changed and len("\n\n".join(b.text for b in current_blocks)) >= soft_min_chars:
-            should_flush = True
-        elif is_title_block and len("\n\n".join(b.text for b in current_blocks)) >= soft_min_chars:
-            should_flush = True
+
+        elif mode == "ocr" and len(candidate_text) > soft_min_chars:
+            if page_changed:
+                should_flush = True
+
+        elif mode == "native" and len(candidate_text) > soft_min_chars:
+            if page_changed or is_title:
+                should_flush = True
 
         if should_flush:
             chunk = flush_chunk(current_blocks, chunk_order)
