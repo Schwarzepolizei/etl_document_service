@@ -41,9 +41,10 @@ class DocumentMeta(BaseModel):
     language: List[str]
     page_count: int
     is_scanned: bool
-
-    extraction_method: str 
+    extraction_method: str
     text_extracted: bool
+    quality_score: float | None = None
+    quality_label: str | None = None
 
 
 class SourceMeta(BaseModel):
