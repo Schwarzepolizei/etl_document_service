@@ -164,11 +164,19 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
             is_scanned = True
             extraction_method = "ocr"
 
+            page_score = compute_page_quality_score(
+                text=full_text,
+                extraction_method="ocr",
+                confidence=avg_conf,
+            )
+            page_scores = [page_score]
+
             pages = [
                 Page(
                     page_num=1,
                     text=full_text,
                     confidence=avg_conf,
+                    quality_score=page_score,
                 )
             ]
 
