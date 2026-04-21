@@ -18,6 +18,11 @@ from app.parsers.docx_parser import parse_docx
 from app.services.ocr_extractor import build_ocr_line_blocks, merge_ocr_lines_to_paragraphs
 from app.services.text_splitter import build_blocks_from_text, build_chunks_from_blocks, build_blocks_from_pages
 from app.services.text_cleaner import clean_text
+from app.services.quality_scorer import (
+    compute_page_quality_score,
+    compute_document_quality_score,
+    get_quality_label,
+)
 from app.utils.file_types import detect_file_type
 
 
@@ -87,22 +92,45 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
             full_text = "\n\n".join([p for p in cleaned_pages if p.strip()])
 
             if extraction_method == "ocr":
-                pages = [
-                    Page(
-                        page_num=i + 1,
+                pages = []
+                page_scores = []
+
+                for i, page_text in enumerate(cleaned_pages):
+                    page_conf = page_confidences[i]
+                    page_score = compute_page_quality_score(
                         text=page_text,
-                        confidence=page_confidences[i],
+                        extraction_method="ocr",
+                        confidence=page_conf,
                     )
-                    for i, page_text in enumerate(cleaned_pages)
-                ]
+                    page_scores.append(page_score)
+
+                    pages.append(
+                        Page(
+                            page_num=i + 1,
+                            text=page_text,
+                            confidence=page_conf,
+                            quality_score=page_score,
+                        )
+                    )
             else:
-                pages = [
-                    Page(
-                        page_num=i + 1,
+                pages = []
+                page_scores = []
+
+                for i, page_text in enumerate(cleaned_pages):
+                    page_score = compute_page_quality_score(
                         text=page_text,
+                        extraction_method="native",
+                        confidence=None,
                     )
-                    for i, page_text in enumerate(cleaned_pages)
-                ]
+                    page_scores.append(page_score)
+
+                    pages.append(
+                        Page(
+                            page_num=i + 1,
+                            text=page_text,
+                            quality_score=page_score,
+                        )
+                    )
 
             if extraction_method == "ocr":
                 blocks = []
