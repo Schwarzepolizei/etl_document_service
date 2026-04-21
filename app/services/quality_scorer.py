@@ -49,3 +49,17 @@ def compute_page_quality_score(
         )
 
     return round(score * 100, 2)
+
+def compute_document_quality_score(page_scores: list[float]) -> float:
+    if not page_scores:
+        return 0.0
+
+    return round(sum(page_scores) / len(page_scores), 2)
+
+
+def get_quality_label(score: float) -> str:
+    if score >= 80:
+        return "high"
+    if score >= 55:
+        return "medium"
+    return "low"
