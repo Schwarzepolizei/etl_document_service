@@ -11,6 +11,7 @@ from app.schemas.document import (
     ProcessingInfo,
 )
 
+from app.parsers.doc_parser import parse_doc
 from app.parsers.pdf_parser import parse_pdf
 from app.parsers.image_parser import parse_image
 from app.parsers.pdf_ocr_parser import parse_scanned_pdf
@@ -90,6 +91,33 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
 
         except Exception as e:
             errors.append(f"DOCX processing error: {type(e).__name__}: {str(e)}")
+
+    elif file_type == "doc":
+        try:
+            full_text = clean_text(parse_doc(file_bytes))
+            page_count = 1
+            is_scanned = False
+            extraction_method = "native"
+
+            page_score = compute_page_quality_score(
+                text=full_text,
+                extraction_method="native",
+                confidence=None,
+            )
+            page_scores = [page_score]
+
+            pages = [
+                Page(
+                    page_num=1,
+                    text=full_text,
+                    quality_score=page_score,
+                )
+            ]
+
+            blocks = build_blocks_from_text(full_text)
+
+        except Exception as e:
+            errors.append(f"DOC processing error: {type(e).__name__}: {str(e)}")
 
     elif file_type == "pdf":
         try:
