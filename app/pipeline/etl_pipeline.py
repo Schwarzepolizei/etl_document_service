@@ -16,8 +16,14 @@ from app.parsers.pdf_parser import parse_pdf
 from app.parsers.image_parser import parse_image
 from app.parsers.pdf_ocr_parser import parse_scanned_pdf
 from app.parsers.docx_parser import parse_docx
+from app.parsers.xlsx_parser import parse_xlsx
 from app.services.ocr_extractor import build_ocr_line_blocks, merge_ocr_lines_to_paragraphs
-from app.services.text_splitter import build_blocks_from_text, build_chunks_from_blocks, build_blocks_from_pages
+from app.services.text_splitter import (
+    build_blocks_from_text,
+    build_chunks_from_blocks,
+    build_blocks_from_pages,
+    build_blocks_from_sheet_rows,
+)
 from app.services.text_cleaner import clean_text
 from app.services.quality_scorer import (
     compute_page_quality_score,
@@ -118,6 +124,43 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
 
         except Exception as e:
             errors.append(f"DOC processing error: {type(e).__name__}: {str(e)}")
+
+    elif file_type == "xlsx":
+        try:
+            sheets_data, page_count = parse_xlsx(file_bytes)
+            is_scanned = False
+            extraction_method = "native"
+
+            cleaned_sheet_texts = [clean_text(sheet["text"]) for sheet in sheets_data]
+            full_text = "\n\n".join([text for text in cleaned_sheet_texts if text.strip()])
+
+            pages = []
+            page_scores = []
+
+            for i, sheet in enumerate(sheets_data):
+                page_text = clean_text(sheet["text"])
+
+                page_score = compute_page_quality_score(
+                    text=page_text,
+                    extraction_method="native",
+                    confidence=None,
+                )
+                page_scores.append(page_score)
+
+                pages.append(
+                    Page(
+                        page_num=i + 1,
+                        text=page_text,
+                        quality_score=page_score,
+                    )
+                )
+
+                sheet["text"] = page_text
+
+            blocks = build_blocks_from_sheet_rows(sheets_data)
+
+        except Exception as e:
+            errors.append(f"XLSX processing error: {type(e).__name__}: {str(e)}")
 
     elif file_type == "pdf":
         try:
