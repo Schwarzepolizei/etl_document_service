@@ -47,10 +47,18 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
         is_scanned = False
         extraction_method = "native"
 
+        page_score = compute_page_quality_score(
+            text=full_text,
+            extraction_method="native",
+            confidence=None,
+        )
+        page_scores = [page_score]
+
         pages = [
             Page(
                 page_num=1,
                 text=full_text,
+                quality_score=page_score,
             )
         ]
         blocks = build_blocks_from_text(full_text)
@@ -62,10 +70,18 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
             is_scanned = False
             extraction_method = "native"
 
+            page_score = compute_page_quality_score(
+                text=full_text,
+                extraction_method="native",
+                confidence=None,
+            )
+            page_scores = [page_score]
+
             pages = [
                 Page(
                     page_num=1,
                     text=full_text,
+                    quality_score=page_score,
                 )
             ]
 
