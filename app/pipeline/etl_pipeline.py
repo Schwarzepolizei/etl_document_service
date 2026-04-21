@@ -40,6 +40,7 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
     extraction_method = "native"
     pages = []
     blocks = []
+    page_scores = []
 
     if file_type == "txt":
         full_text = clean_text(parse_txt(file_bytes))
@@ -212,6 +213,9 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
     duration_ms = int((time.time() - started) * 1000)
     text_extracted = bool(full_text.strip())
 
+    document_quality_score = compute_document_quality_score(page_scores) if pages else 0.0
+    document_quality_label = get_quality_label(document_quality_score)
+
     return ETLResponse(
         document_id=doc_id,
         source=SourceMeta(
@@ -224,6 +228,8 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
             is_scanned=is_scanned,
             extraction_method=extraction_method,
             text_extracted=text_extracted,
+            quality_score=document_quality_score,
+            quality_label=document_quality_label,
         ),
         content=Content(
             full_text=full_text,
