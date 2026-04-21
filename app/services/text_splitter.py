@@ -58,6 +58,42 @@ def build_blocks_from_pages(page_texts: list[str]) -> list[Block]:
 
     return blocks
 
+def build_blocks_from_sheet_rows(sheets_data: list[dict]) -> list[Block]:
+    blocks = []
+    block_index = 1
+
+    for page_num, sheet in enumerate(sheets_data, start=1):
+        sheet_name = sheet["sheet_name"]
+        rows = sheet["rows"]
+
+        if sheet_name:
+            blocks.append(
+                Block(
+                    block_id=f"b{block_index}",
+                    page_num=page_num,
+                    block_order=block_index,
+                    block_type="section_header",
+                    text=sheet_name,
+                    confidence=1.0,
+                )
+            )
+            block_index += 1
+
+        for row_text in rows:
+            blocks.append(
+                Block(
+                    block_id=f"b{block_index}",
+                    page_num=page_num,
+                    block_order=block_index,
+                    block_type="table_row",
+                    text=row_text,
+                    confidence=1.0,
+                )
+            )
+            block_index += 1
+
+    return blocks
+
 
 def build_chunks_from_blocks(
     blocks: list[Block],
