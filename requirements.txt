@@ -12,3 +12,5 @@ pdfplumber
 pymupdf
 pytesseract
 striprtf
+sentence-transformers 
+faiss-cpu
