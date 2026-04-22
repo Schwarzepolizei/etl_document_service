@@ -5,7 +5,7 @@ import tempfile
 from app.parsers.docx_parser import parse_docx
 
 
-def parse_doc(file_bytes: bytes) -> str:
+def parse_doc(file_bytes: bytes) -> dict:
     with tempfile.TemporaryDirectory() as temp_dir:
         input_path = os.path.join(temp_dir, "input.doc")
 
