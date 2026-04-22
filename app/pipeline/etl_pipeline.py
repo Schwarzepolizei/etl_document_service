@@ -25,6 +25,7 @@ from app.services.text_splitter import (
     build_chunks_from_blocks,
     build_blocks_from_pages,
     build_blocks_from_sheet_rows,
+    build_blocks_from_word_elements,
 )
 from app.services.text_cleaner import clean_text
 from app.services.quality_scorer import (
@@ -75,8 +76,11 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
 
     elif file_type == "docx":
         try:
-            full_text = clean_text(parse_docx(file_bytes))
-            page_count = 1
+            parsed = parse_docx(file_bytes)
+            full_text = clean_text(parsed["full_text"])
+            elements = parsed["elements"]
+
+            page_count = 0
             is_scanned = False
             extraction_method = "native"
 
@@ -95,15 +99,18 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                 )
             ]
 
-            blocks = build_blocks_from_text(full_text)
+            blocks = build_blocks_from_word_elements(elements)
 
         except Exception as e:
             errors.append(f"DOCX processing error: {type(e).__name__}: {str(e)}")
 
     elif file_type == "doc":
         try:
-            full_text = clean_text(parse_doc(file_bytes))
-            page_count = 1
+            parsed = parse_doc(file_bytes)
+            full_text = clean_text(parsed["full_text"])
+            elements = parsed["elements"]
+
+            page_count = 0
             is_scanned = False
             extraction_method = "native"
 
@@ -122,7 +129,7 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                 )
             ]
 
-            blocks = build_blocks_from_text(full_text)
+            blocks = build_blocks_from_word_elements(elements)
 
         except Exception as e:
             errors.append(f"DOC processing error: {type(e).__name__}: {str(e)}")
