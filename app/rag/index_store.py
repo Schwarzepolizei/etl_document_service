@@ -77,3 +77,28 @@ class FaissIndexStore:
 
         if os.path.exists(self.meta_path):
             os.remove(self.meta_path)
+
+    def list_documents(self) -> list[dict]:
+        if not self.exists():
+            return []
+
+        _, metadata = self.load()
+
+        grouped = {}
+
+        for item in metadata:
+            key = (
+                item.get("document_id"),
+                item.get("file_name"),
+            )
+
+            if key not in grouped:
+                grouped[key] = {
+                    "document_id": item.get("document_id"),
+                    "file_name": item.get("file_name"),
+                    "chunks_count": 0,
+                }
+
+            grouped[key]["chunks_count"] += 1
+
+        return list(grouped.values())
