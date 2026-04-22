@@ -53,12 +53,23 @@ class SourceMeta(BaseModel):
     file_type: str
 
 
+class ProcessingStats(BaseModel):
+    pages_count: int = 0
+    blocks_count: int = 0
+    chunks_count: int = 0
+    empty_pages_count: int = 0
+    text_length: int = 0
+    avg_page_confidence: Optional[float] = None
+    avg_page_quality: Optional[float] = None
+
+
 class ProcessingInfo(BaseModel):
     status: str
     pipeline_version: str
     duration_ms: Optional[int] = None
     warnings: List[str] = []
     errors: List[str] = []
+    stats: Optional[ProcessingStats] = None
 
 
 class Content(BaseModel):
