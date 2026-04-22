@@ -180,3 +180,33 @@ def build_chunks_from_blocks(
         chunks.append(chunk)
 
     return chunks
+
+def build_blocks_from_word_elements(elements: list[dict]) -> list[Block]:
+    blocks = []
+    block_index = 1
+
+    for element in elements:
+        text = element.get("text", "").strip()
+        if not text:
+            continue
+
+        element_type = element.get("type", "paragraph")
+
+        if element_type == "table_row":
+            block_type = "table_row"
+        else:
+            block_type = guess_block_type(text, is_first=(block_index == 1))
+
+        blocks.append(
+            Block(
+                block_id=f"b{block_index}",
+                page_num=1,
+                block_order=block_index,
+                block_type=block_type,
+                text=text,
+                confidence=1.0,
+            )
+        )
+        block_index += 1
+
+    return blocks
