@@ -36,7 +36,12 @@ async def index_document(file: UploadFile = File(...)):
 async def search(request: SearchRequest):
     try:
         retriever = Retriever()
-        results = retriever.search(request.query, request.top_k)
+        results = retriever.search(
+            query=request.query,
+            top_k=request.top_k,
+            document_id=request.document_id,
+            file_name=request.file_name,
+        )
 
         return SearchResponse(
             query=request.query,
