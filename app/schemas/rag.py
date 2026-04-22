@@ -56,3 +56,14 @@ class IndexedDocumentInfo(BaseModel):
 
 class DocumentsResponse(BaseModel):
     documents: list[IndexedDocumentInfo]
+
+
+class DeleteDocumentRequest(BaseModel):
+    document_id: str | None = None
+    file_name: str | None = None
+
+
+class DeleteDocumentResponse(BaseModel):
+    status: str
+    removed_chunks: int
+    remaining_chunks: int
