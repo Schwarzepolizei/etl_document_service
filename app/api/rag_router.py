@@ -4,6 +4,7 @@ from fastapi import APIRouter, File, UploadFile, HTTPException
 
 from app.pipeline.etl_pipeline import run_etl
 from app.rag.answer_builder import AnswerBuilder
+from app.rag.document_manager import DocumentManager
 from app.rag.index_builder import IndexBuilder
 from app.rag.index_store import FaissIndexStore
 from app.rag.retriever import Retriever
@@ -14,6 +15,8 @@ from app.schemas.rag import (
     AskRequest,
     AskResponse,
     DocumentsResponse,
+    DeleteDocumentRequest,
+    DeleteDocumentResponse,
 )
 
 
@@ -100,5 +103,18 @@ async def list_documents():
         store = FaissIndexStore()
         documents = store.list_documents()
         return DocumentsResponse(documents=documents)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+@router.delete("/document", response_model=DeleteDocumentResponse)
+async def delete_document(request: DeleteDocumentRequest):
+    try:
+        manager = DocumentManager()
+        result = manager.delete_document(
+            document_id=request.document_id,
+            file_name=request.file_name,
+        )
+        return DeleteDocumentResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
