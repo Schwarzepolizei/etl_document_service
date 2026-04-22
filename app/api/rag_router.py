@@ -7,7 +7,14 @@ from app.rag.answer_builder import AnswerBuilder
 from app.rag.index_builder import IndexBuilder
 from app.rag.index_store import FaissIndexStore
 from app.rag.retriever import Retriever
-from app.schemas.rag import SearchRequest, SearchResponse, IndexResponse, AskRequest, AskResponse
+from app.schemas.rag import (
+    SearchRequest,
+    SearchResponse,
+    IndexResponse,
+    AskRequest,
+    AskResponse,
+    DocumentsResponse,
+)
 
 
 router = APIRouter(prefix="/rag", tags=["rag"])
@@ -83,5 +90,15 @@ async def ask(request: AskRequest):
             context=context,
             results=results,
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+@router.get("/documents", response_model=DocumentsResponse)
+async def list_documents():
+    try:
+        store = FaissIndexStore()
+        documents = store.list_documents()
+        return DocumentsResponse(documents=documents)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
