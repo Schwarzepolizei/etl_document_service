@@ -33,7 +33,7 @@ class IndexBuilder:
             )
 
         embeddings = self.embedder.embed_texts(texts)
-        self.store.save(embeddings, metadata)
+        self.store.append(embeddings, metadata)
 
         return {
             "status": "success",
