@@ -30,3 +30,15 @@ class SearchResponse(BaseModel):
     query: str
     top_k: int
     results: list[SearchResult]
+
+
+class AskRequest(BaseModel):
+    query: str
+    top_k: int = 5
+
+
+class AskResponse(BaseModel):
+    query: str
+    answer: str
+    context: str
+    results: list[SearchResult]
