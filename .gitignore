@@ -7,3 +7,4 @@ venv/
 .vscode/
 logs/
 data/processed/
+.storage/
