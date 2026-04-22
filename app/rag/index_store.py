@@ -102,3 +102,19 @@ class FaissIndexStore:
             grouped[key]["chunks_count"] += 1
 
         return list(grouped.values())
+    
+    def overwrite(self, embeddings: list[list[float]], metadata: list[dict[str, Any]]) -> None:
+        if not embeddings:
+            self.clear()
+            return
+
+        vectors = np.array(embeddings, dtype="float32")
+        dim = vectors.shape[1]
+
+        index = faiss.IndexFlatIP(dim)
+        index.add(vectors)
+
+        faiss.write_index(index, self.index_path)
+
+        with open(self.meta_path, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, ensure_ascii=False, indent=2)
