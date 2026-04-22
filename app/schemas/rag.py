@@ -46,3 +46,13 @@ class AskResponse(BaseModel):
     answer: str
     context: str
     results: list[SearchResult]
+
+
+class IndexedDocumentInfo(BaseModel):
+    document_id: str | None = None
+    file_name: str | None = None
+    chunks_count: int
+
+
+class DocumentsResponse(BaseModel):
+    documents: list[IndexedDocumentInfo]
