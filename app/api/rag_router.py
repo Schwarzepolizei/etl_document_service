@@ -4,6 +4,7 @@ from fastapi import APIRouter, File, UploadFile, HTTPException
 
 from app.pipeline.etl_pipeline import run_etl
 from app.rag.index_builder import IndexBuilder
+from app.rag.index_store import FaissIndexStore
 from app.rag.retriever import Retriever
 from app.schemas.rag import SearchRequest, SearchResponse, IndexResponse
 
@@ -40,5 +41,15 @@ async def search(request: SearchRequest):
             top_k=request.top_k,
             results=results,
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+@router.delete("/index")
+async def clear_index():
+    try:
+        store = FaissIndexStore()
+        store.clear()
+        return {"status": "success", "message": "Index cleared"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
