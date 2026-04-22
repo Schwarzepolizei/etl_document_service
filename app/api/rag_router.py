@@ -3,10 +3,12 @@ import json
 from fastapi import APIRouter, File, UploadFile, HTTPException
 
 from app.pipeline.etl_pipeline import run_etl
+from app.rag.answer_builder import AnswerBuilder
 from app.rag.index_builder import IndexBuilder
 from app.rag.index_store import FaissIndexStore
 from app.rag.retriever import Retriever
-from app.schemas.rag import SearchRequest, SearchResponse, IndexResponse
+from app.schemas.rag import SearchRequest, SearchResponse, IndexResponse, AskRequest, AskResponse
+
 
 router = APIRouter(prefix="/rag", tags=["rag"])
 
@@ -51,5 +53,25 @@ async def clear_index():
         store = FaissIndexStore()
         store.clear()
         return {"status": "success", "message": "Index cleared"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+@router.post("/ask", response_model=AskResponse)
+async def ask(request: AskRequest):
+    try:
+        retriever = Retriever()
+        results = retriever.search(request.query, request.top_k)
+
+        answer_builder = AnswerBuilder()
+        context = answer_builder.build_context(results)
+        answer = answer_builder.build_answer(request.query, results)
+
+        return AskResponse(
+            query=request.query,
+            answer=answer,
+            context=context,
+            results=results,
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
