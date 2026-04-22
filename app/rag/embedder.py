@@ -1,27 +1,31 @@
 from sentence_transformers import SentenceTransformer
 
+_model = None
+
+
+def get_model():
+    global _model
+    if _model is None:
+        print("Loading embedding model...")
+        _model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+        print("Embedding model loaded")
+    return _model
+
 
 class EmbeddingService:
-    def __init__(self, model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"):
-        print(f"Loading embedding model: {model_name}")
-        self.model = SentenceTransformer(model_name)
-        print("Embedding model loaded")
+    def __init__(self):
+        self.model = get_model()
 
-    def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        if not texts:
-            return []
-
-        embeddings = self.model.encode(
+    def embed_texts(self, texts: list[str]):
+        return self.model.encode(
             texts,
             normalize_embeddings=True,
             convert_to_numpy=True,
-        )
-        return embeddings.tolist()
+        ).tolist()
 
-    def embed_query(self, text: str) -> list[float]:
-        embedding = self.model.encode(
+    def embed_query(self, text: str):
+        return self.model.encode(
             [text],
             normalize_embeddings=True,
             convert_to_numpy=True,
-        )[0]
-        return embedding.tolist()
+        )[0].tolist()
