@@ -19,6 +19,7 @@ from app.parsers.pdf_ocr_parser import parse_scanned_pdf
 from app.parsers.docx_parser import parse_docx
 from app.parsers.xlsx_parser import parse_xlsx
 from app.services.ocr_extractor import build_ocr_line_blocks, merge_ocr_lines_to_paragraphs
+from app.services.processing_stats import build_processing_stats
 from app.services.text_splitter import (
     build_blocks_from_text,
     build_chunks_from_blocks,
@@ -315,6 +316,13 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
     document_quality_score = compute_document_quality_score(page_scores) if pages else 0.0
     document_quality_label = get_quality_label(document_quality_score)
 
+    processing_stats = build_processing_stats(
+    full_text=full_text,
+    pages=pages,
+    blocks=blocks,
+    chunks=chunks,
+)
+
     return ETLResponse(
         document_id=doc_id,
         source=SourceMeta(
@@ -342,5 +350,6 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
             duration_ms=duration_ms,
             warnings=warnings,
             errors=errors,
+            stats=processing_stats,
         ),
     )
