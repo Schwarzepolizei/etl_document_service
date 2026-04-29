@@ -194,6 +194,12 @@ def build_blocks_from_word_elements(elements: list[dict]) -> list[Block]:
 
         if element_type == "table_row":
             block_type = "table_row"
+        elif element_type == "table_start":
+            block_type = "table_start"
+        elif element_type == "table_end":
+            block_type = "table_end"
+        elif text.startswith("[FORMULA]"):
+            block_type = "formula"
         else:
             block_type = guess_block_type(text, is_first=(block_index == 1))
 
