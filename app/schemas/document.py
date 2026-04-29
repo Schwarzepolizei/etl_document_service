@@ -40,7 +40,7 @@ class Page(BaseModel):
 
 class DocumentMeta(BaseModel):
     language: List[str]
-    page_count: int
+    page_count: int | None = None
     is_scanned: bool
     extraction_method: str
     text_extracted: bool
