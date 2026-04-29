@@ -77,18 +77,47 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
     elif file_type == "docx":
         try:
             parsed = parse_docx(file_bytes)
+
             full_text = clean_text(parsed["full_text"])
             elements = parsed["elements"]
+            word_stats = parsed.get("stats", {})
 
-            page_count = 0
+            page_count = None
             is_scanned = False
             extraction_method = "native"
+
+            if word_stats.get("tables_count", 0) > 0:
+                warnings.append(
+                    f"Документ Word содержит {word_stats['tables_count']} таблицы; извлеченные в виде блоков table_row."
+                )
+
+            if word_stats.get("equations_count", 0) > 0:
+                warnings.append(
+                    f"Документ Word содержит {word_stats['equations_count']} уравнений; извлечение формул ограничено."
+                )
+
+            if word_stats.get("images_count", 0) > 0:
+                warnings.append(
+                    f"Документ Word содержит {word_stats['images_count']} изображений; извлечение изображений не реализовано."
+                )
+
+            if word_stats.get("embedded_objects_count", 0) > 0:
+                warnings.append(
+                    f"Документ Word содержит {word_stats['embedded_objects_count']} встроенных объектов; извлечение ограничено."
+                )
 
             page_score = compute_page_quality_score(
                 text=full_text,
                 extraction_method="native",
                 confidence=None,
             )
+
+            if word_stats.get("equations_count", 0) > 0:
+                page_score = max(0, page_score - 10)
+
+            if word_stats.get("embedded_objects_count", 0) > 0:
+                page_score = max(0, page_score - 10)
+
             page_scores = [page_score]
 
             pages = [
@@ -107,18 +136,51 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
     elif file_type == "doc":
         try:
             parsed = parse_doc(file_bytes)
+
             full_text = clean_text(parsed["full_text"])
             elements = parsed["elements"]
+            word_stats = parsed.get("stats", {})
 
-            page_count = 0
+            page_count = None
             is_scanned = False
             extraction_method = "native"
+
+            warnings.append(
+                "DOC file was converted to DOCX via LibreOffice; layout may differ from original."
+            )
+
+            if word_stats.get("tables_count", 0) > 0:
+                warnings.append(
+                    f"Документ Word содержит {word_stats['tables_count']} таблицы; извлеченные в виде блоков table_row."
+                )
+
+            if word_stats.get("equations_count", 0) > 0:
+                warnings.append(
+                    f"Документ Word содержит {word_stats['equations_count']} уравнений; извлечение формул ограничено."
+                )
+
+            if word_stats.get("images_count", 0) > 0:
+                warnings.append(
+                    f"Документ Word содержит {word_stats['images_count']} изображений; извлечение изображений не реализовано."
+                )
+
+            if word_stats.get("embedded_objects_count", 0) > 0:
+                warnings.append(
+                    f"Документ Word содержит {word_stats['embedded_objects_count']} встроенных объектов; извлечение ограничено."
+                )
 
             page_score = compute_page_quality_score(
                 text=full_text,
                 extraction_method="native",
                 confidence=None,
             )
+
+            if word_stats.get("equations_count", 0) > 0:
+                page_score = max(0, page_score - 10)
+
+            if word_stats.get("embedded_objects_count", 0) > 0:
+                page_score = max(0, page_score - 10)
+
             page_scores = [page_score]
 
             pages = [
