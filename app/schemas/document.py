@@ -62,6 +62,12 @@ class ProcessingStats(BaseModel):
     avg_page_confidence: Optional[float] = None
     avg_page_quality: Optional[float] = None
 
+    tables_count: int = 0
+    table_rows_count: int = 0
+    images_count: int = 0
+    equations_count: int = 0
+    embedded_objects_count: int = 0
+
 
 class ProcessingInfo(BaseModel):
     status: str
