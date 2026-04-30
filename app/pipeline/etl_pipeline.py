@@ -43,6 +43,7 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
 
     warnings = []
     errors = []
+    extra_stats = {}
 
     full_text = ""
     page_count = 0
@@ -81,6 +82,7 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
             full_text = clean_text(parsed["full_text"])
             elements = parsed["elements"]
             word_stats = parsed.get("stats", {})
+            extra_stats.update(word_stats)
 
             page_count = None
             is_scanned = False
@@ -112,11 +114,22 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                 confidence=None,
             )
 
-            if word_stats.get("equations_count", 0) > 0:
-                page_score = max(0, page_score - 10)
+            tables_count = word_stats.get("tables_count", 0)
+            equations_count = word_stats.get("equations_count", 0)
+            images_count = word_stats.get("images_count", 0)
+            embedded_objects_count = word_stats.get("embedded_objects_count", 0)
 
-            if word_stats.get("embedded_objects_count", 0) > 0:
-                page_score = max(0, page_score - 10)
+            if tables_count > 0:
+                page_score = max(0, page_score - min(10, tables_count * 2))
+
+            if equations_count > 0:
+                page_score = max(0, page_score - min(15, equations_count * 3))
+
+            if images_count > 0:
+                page_score = max(0, page_score - min(15, images_count * 3))
+
+            if embedded_objects_count > 0:
+                page_score = max(0, page_score - min(20, embedded_objects_count * 5))
 
             page_scores = [page_score]
 
@@ -140,6 +153,7 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
             full_text = clean_text(parsed["full_text"])
             elements = parsed["elements"]
             word_stats = parsed.get("stats", {})
+            extra_stats.update(word_stats)
 
             page_count = None
             is_scanned = False
@@ -175,11 +189,22 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                 confidence=None,
             )
 
-            if word_stats.get("equations_count", 0) > 0:
-                page_score = max(0, page_score - 10)
+            tables_count = word_stats.get("tables_count", 0)
+            equations_count = word_stats.get("equations_count", 0)
+            images_count = word_stats.get("images_count", 0)
+            embedded_objects_count = word_stats.get("embedded_objects_count", 0)
 
-            if word_stats.get("embedded_objects_count", 0) > 0:
-                page_score = max(0, page_score - 10)
+            if tables_count > 0:
+                page_score = max(0, page_score - min(10, tables_count * 2))
+
+            if equations_count > 0:
+                page_score = max(0, page_score - min(15, equations_count * 3))
+
+            if images_count > 0:
+                page_score = max(0, page_score - min(15, images_count * 3))
+
+            if embedded_objects_count > 0:
+                page_score = max(0, page_score - min(20, embedded_objects_count * 5))
 
             page_scores = [page_score]
 
@@ -390,6 +415,7 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
     pages=pages,
     blocks=blocks,
     chunks=chunks,
+    extra_stats=extra_stats,
 )
 
     return ETLResponse(
