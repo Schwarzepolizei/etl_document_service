@@ -149,13 +149,23 @@ def build_chunks_from_blocks(
         prev_block = current_blocks[-1]
 
         page_changed = prev_block.page_num != block.page_num
-        is_title = block.block_type in {"title", "section_header"}
+        is_title = block.block_type in {"title", "section_header", "table_start"}
 
         exceeds_limit = len(candidate_text) > max_chars
 
+        inside_table = any(
+            b.block_type in {"table_start", "table_row"}
+            for b in current_blocks
+        ) and block.block_type != "table_end"
+
+
         should_flush = False
 
-        if exceeds_limit:
+        hard_limit_exceeded = len(candidate_text) > 4000
+
+        if hard_limit_exceeded:
+            should_flush = True
+        elif exceeds_limit and not inside_table:
             should_flush = True
 
         elif mode == "ocr" and len(candidate_text) > soft_min_chars:
@@ -163,7 +173,7 @@ def build_chunks_from_blocks(
                 should_flush = True
 
         elif mode == "native" and len(candidate_text) > soft_min_chars:
-            if page_changed or is_title:
+            if not inside_table and (page_changed or is_title):
                 should_flush = True
 
         if should_flush:
