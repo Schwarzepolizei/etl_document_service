@@ -322,6 +322,9 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
         try:
             page_texts, page_count, has_text_layer = parse_pdf(file_bytes)
 
+            page_ocr_data = []
+            page_confidences = []
+
             if has_text_layer:
                 is_scanned = False
                 extraction_method = "native"
@@ -334,47 +337,81 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                 cleaned_pages = [clean_text(p) for p in page_texts]
 
             full_text = "\n\n".join([p for p in cleaned_pages if p.strip()])
+            text_extracted = bool(full_text.strip())
 
-            if extraction_method == "ocr":
-                pages = []
-                page_scores = []
+            pdf_artifacts = ["■■", "���", "□", "�"]
 
-                for i, page_text in enumerate(cleaned_pages):
-                    page_conf = page_confidences[i]
-                    page_score = compute_page_quality_score(
+            has_pdf_artifacts = any(a in full_text for a in pdf_artifacts)
+
+            suspicious_words_count = sum(
+                1
+                for word in full_text.split()
+                if len(word) > 12 and not any(ch.isdigit() for ch in word)
+            )
+
+            formula_markers = [
+                "формула",
+                "формулы",
+                "по формуле",
+                "(1)",
+                "(2)",
+                "(3)",
+                "(4)",
+                "(5)",
+                "(6)",
+                "(7)",
+                "(8)",
+                "(9)",
+            ]
+
+            has_formula_like_content = any(
+                marker in full_text.lower()
+                for marker in formula_markers
+            )
+
+            if extraction_method == "native":
+                if has_pdf_artifacts or suspicious_words_count > 30:
+                    warnings.append(
+                        "Текстовый слой PDF-файла содержит артефакты; качество извлечения может быть ограничено."
+                    )
+
+                if has_formula_like_content:
+                    warnings.append(
+                        "PDF содержит формулы или похожий на формулы контент; извлечение формул может быть неполным."
+                    )
+
+            pages = []
+            page_scores = []
+
+            for i, page_text in enumerate(cleaned_pages):
+                page_conf = page_confidences[i] if i < len(page_confidences) else None
+
+                page_score = compute_page_quality_score(
+                    text=page_text,
+                    extraction_method=extraction_method,
+                    confidence=page_conf,
+                )
+
+                if extraction_method == "native":
+                    if has_pdf_artifacts:
+                        page_score = max(0, page_score - 10)
+
+                    if suspicious_words_count > 30:
+                        page_score = max(0, page_score - 10)
+
+                    if has_formula_like_content:
+                        page_score = max(0, page_score - 10)
+
+                page_scores.append(page_score)
+
+                pages.append(
+                    Page(
+                        page_num=i + 1,
                         text=page_text,
-                        extraction_method="ocr",
                         confidence=page_conf,
+                        quality_score=page_score,
                     )
-                    page_scores.append(page_score)
-
-                    pages.append(
-                        Page(
-                            page_num=i + 1,
-                            text=page_text,
-                            confidence=page_conf,
-                            quality_score=page_score,
-                        )
-                    )
-            else:
-                pages = []
-                page_scores = []
-
-                for i, page_text in enumerate(cleaned_pages):
-                    page_score = compute_page_quality_score(
-                        text=page_text,
-                        extraction_method="native",
-                        confidence=None,
-                    )
-                    page_scores.append(page_score)
-
-                    pages.append(
-                        Page(
-                            page_num=i + 1,
-                            text=page_text,
-                            quality_score=page_score,
-                        )
-                    )
+                )
 
             if extraction_method == "ocr":
                 blocks = []
@@ -384,7 +421,7 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                     line_blocks = build_ocr_line_blocks(
                         ocr_data,
                         page_num=page_num,
-                        start_block_index=1,
+                        start_block_index=paragraph_index,
                     )
 
                     paragraph_blocks = merge_ocr_lines_to_paragraphs(line_blocks)
@@ -399,7 +436,6 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
 
         except Exception as e:
             errors.append(f"PDF processing error: {type(e).__name__}: {str(e)}")
-
     elif file_type == "image":
         try:
             raw_text, _, avg_conf, ocr_data = parse_image(file_bytes)
