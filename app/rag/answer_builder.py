@@ -11,8 +11,19 @@ class AnswerBuilder:
             if not text:
                 continue
 
-            chunk_header = f"[{item.get('file_name', 'unknown')} | chunk {item.get('chunk_order', '?')}]"
-            part = f"{chunk_header}\n{text}"
+            header_parts = [
+                f"Источник: {item.get('file_name', 'unknown')}",
+                f"Chunk: {item.get('chunk_order', '?')}",
+            ]
+
+            if item.get("source_context"):
+                header_parts.append(item["source_context"])
+
+            if item.get("content_type"):
+                header_parts.append(f"Тип: {item['content_type']}")
+
+            header = " | ".join(header_parts)
+            part = f"[{header}]\n{text}"
 
             if total_len + len(part) > max_chars:
                 break
