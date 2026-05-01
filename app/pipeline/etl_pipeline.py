@@ -224,15 +224,48 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
     elif file_type == "rtf":
         try:
             full_text = clean_text(parse_rtf(file_bytes))
-            page_count = 1
+
+            page_count = None
             is_scanned = False
             extraction_method = "native"
+            text_extracted = bool(full_text.strip())
+
+            warnings.append(
+                "Количество страниц в формате RTF недоступно без рендеринга документа."
+            )
+
+            formula_markers = [
+                "формула",
+                "формулы",
+                "по формуле",
+                "(1)",
+                "(2)",
+                "(3)",
+                "(4)",
+                "(5)",
+                "(6)",
+                "(7)",
+                "(8)",
+                "(9)",
+            ]
+
+            has_formula_like_content = any(
+                marker in full_text.lower()
+                for marker in formula_markers
+            )
 
             page_score = compute_page_quality_score(
                 text=full_text,
                 extraction_method="native",
                 confidence=None,
             )
+
+            if has_formula_like_content:
+                page_score = max(0, page_score - 10)
+                warnings.append(
+                    "RTF содержит формулы; извлечение формул может быть неполным."
+                )
+
             page_scores = [page_score]
 
             pages = [
