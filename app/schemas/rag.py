@@ -26,6 +26,10 @@ class SearchResult(BaseModel):
     block_types: list[str] = []
     char_count: int = 0
     score: float
+    section_title: str | None = None
+    content_type: str = "text"
+    source_context: str | None = None
+    token_estimate: int = 0
 
 
 class SearchResponse(BaseModel):
