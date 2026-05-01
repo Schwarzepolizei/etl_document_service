@@ -329,6 +329,31 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                 is_scanned = False
                 extraction_method = "native"
                 cleaned_pages = [clean_text(p) for p in page_texts]
+
+                native_text = "\n\n".join([p for p in cleaned_pages if p.strip()])
+                empty_native_pages = sum(1 for p in cleaned_pages if not p.strip())
+
+                native_text_too_small = len(native_text) < 100
+                too_many_empty_pages = page_count > 0 and empty_native_pages / page_count > 0.5
+
+                should_fallback_to_ocr = (
+                    has_text_layer
+                    and (native_text_too_small or too_many_empty_pages)
+                )
+
+                if should_fallback_to_ocr:
+                    warnings.append(
+                        "Текстовый слой PDF-файла недостаточен; в качестве резервного варианта использовалось оптическое распознавание текста (OCR)."
+                    )
+
+                    page_texts, page_count, page_ocr_data, page_confidences = parse_scanned_pdf(file_bytes)
+                    is_scanned = True
+                    extraction_method = "ocr"
+                    cleaned_pages = [clean_text(p) for p in page_texts]
+                else:
+                    is_scanned = False
+                    extraction_method = "native"
+                    page_confidences = [None] * len(cleaned_pages)
                 page_confidences = [None] * len(cleaned_pages)
             else:
                 page_texts, page_count, page_ocr_data, page_confidences = parse_scanned_pdf(file_bytes)
