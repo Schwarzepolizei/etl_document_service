@@ -29,6 +29,11 @@ class IndexBuilder:
                     "page_span": chunk.get("page_span", []),
                     "block_types": chunk.get("block_types", []),
                     "char_count": chunk.get("char_count", 0),
+
+                    "section_title": chunk.get("section_title"),
+                    "content_type": chunk.get("content_type", "text"),
+                    "source_context": chunk.get("source_context"),
+                    "token_estimate": chunk.get("token_estimate", 0),
                 }
             )
 
