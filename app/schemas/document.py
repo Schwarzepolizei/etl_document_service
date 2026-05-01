@@ -24,9 +24,15 @@ class Chunk(BaseModel):
     chunk_order: int
     block_ids: List[str]
     text: str
+
     page_span: List[int] = []
     block_types: List[str] = []
     char_count: int = 0
+
+    section_title: Optional[str] = None
+    content_type: str = "text"
+    source_context: Optional[str] = None
+    token_estimate: int = 0
 
 
 class Page(BaseModel):
