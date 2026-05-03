@@ -19,6 +19,7 @@ from app.parsers.pdf_ocr_parser import parse_scanned_pdf
 from app.parsers.docx_parser import parse_docx
 from app.parsers.xlsx_parser import parse_xlsx
 from app.services.ocr_extractor import build_ocr_line_blocks, merge_ocr_lines_to_paragraphs
+from app.services.ocr_filter import filter_ocr_noise
 from app.services.processing_stats import build_processing_stats
 from app.services.text_splitter import (
     build_blocks_from_text,
@@ -326,27 +327,29 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
             page_confidences = []
 
             if has_text_layer:
-                is_scanned = False
-                extraction_method = "native"
                 cleaned_pages = [clean_text(p) for p in page_texts]
 
                 native_text = "\n\n".join([p for p in cleaned_pages if p.strip()])
                 empty_native_pages = sum(1 for p in cleaned_pages if not p.strip())
 
                 native_text_too_small = len(native_text) < 100
-                too_many_empty_pages = page_count > 0 and empty_native_pages / page_count > 0.5
+                too_many_empty_pages = (
+                    page_count > 0 and empty_native_pages / page_count > 0.5
+                )
 
                 should_fallback_to_ocr = (
-                    has_text_layer
-                    and (native_text_too_small or too_many_empty_pages)
+                    native_text_too_small or too_many_empty_pages
                 )
 
                 if should_fallback_to_ocr:
                     warnings.append(
-                        "Текстовый слой PDF-файла недостаточен; в качестве резервного варианта использовалось оптическое распознавание текста (OCR)."
+                        "Текстовый слой PDF-файла недостаточен; использован OCR fallback."
                     )
 
-                    page_texts, page_count, page_ocr_data, page_confidences = parse_scanned_pdf(file_bytes)
+                    page_texts, page_count, page_ocr_data, page_confidences = parse_scanned_pdf(
+                        file_bytes
+                    )
+
                     is_scanned = True
                     extraction_method = "ocr"
                     cleaned_pages = [clean_text(p) for p in page_texts]
@@ -354,9 +357,12 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                     is_scanned = False
                     extraction_method = "native"
                     page_confidences = [None] * len(cleaned_pages)
-                page_confidences = [None] * len(cleaned_pages)
+
             else:
-                page_texts, page_count, page_ocr_data, page_confidences = parse_scanned_pdf(file_bytes)
+                page_texts, page_count, page_ocr_data, page_confidences = parse_scanned_pdf(
+                    file_bytes
+                )
+
                 is_scanned = True
                 extraction_method = "ocr"
                 cleaned_pages = [clean_text(p) for p in page_texts]
@@ -365,7 +371,6 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
             text_extracted = bool(full_text.strip())
 
             pdf_artifacts = ["■■", "���", "□", "�"]
-
             has_pdf_artifacts = any(a in full_text for a in pdf_artifacts)
 
             suspicious_words_count = sum(
@@ -456,6 +461,57 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                         block.block_order = paragraph_index
                         blocks.append(block)
                         paragraph_index += 1
+
+                blocks, removed_ocr_noise = filter_ocr_noise(blocks)
+
+                if removed_ocr_noise > 0:
+                    warnings.append(
+                        f"Removed {removed_ocr_noise} low-quality OCR blocks from indexing."
+                    )
+
+                full_text = "\n\n".join(
+                    block.text.strip()
+                    for block in blocks
+                    if block.text.strip()
+                )
+                text_extracted = bool(full_text.strip())
+
+                page_text_map = {}
+
+                for block in blocks:
+                    page_text_map.setdefault(block.page_num, []).append(block.text.strip())
+
+                filtered_pages = []
+                filtered_page_scores = []
+
+                for page_num in range(1, page_count + 1):
+                    page_text = "\n\n".join(page_text_map.get(page_num, []))
+                    page_conf = (
+                        page_confidences[page_num - 1]
+                        if page_num - 1 < len(page_confidences)
+                        else None
+                    )
+
+                    page_score = compute_page_quality_score(
+                        text=page_text,
+                        extraction_method="ocr",
+                        confidence=page_conf,
+                    )
+
+                    filtered_page_scores.append(page_score)
+
+                    filtered_pages.append(
+                        Page(
+                            page_num=page_num,
+                            text=page_text,
+                            confidence=page_conf,
+                            quality_score=page_score,
+                        )
+                    )
+
+                pages = filtered_pages
+                page_scores = filtered_page_scores
+
             else:
                 blocks = build_blocks_from_pages(cleaned_pages)
 
