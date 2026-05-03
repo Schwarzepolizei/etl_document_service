@@ -330,12 +330,17 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                 return sum(
                     1
                     for word in text.split()
-                    if len(word) > 12 and not any(ch.isdigit() for ch in word)
+                    if len(word) > 20 and not any(ch.isdigit() for ch in word)
                 )
 
             def has_valid_text(text: str) -> bool:
                 valid_words = sum(1 for w in text.split() if len(w) > 2)
                 return valid_words > 20
+
+            def get_confidence(idx: int) -> float | None:
+                if idx < len(page_confidences):
+                    return page_confidences[idx]
+                return None
 
             pdf_artifacts = ["■■", "���", "□", "�"]
 
@@ -357,7 +362,7 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
             if has_text_layer:
                 cleaned_pages = [clean_text(p) for p in page_texts]
 
-                native_text = "\n\n".join([p for p in cleaned_pages if p.strip()])
+                native_text = "\n\n".join(p for p in cleaned_pages if p.strip())
                 empty_native_pages = sum(1 for p in cleaned_pages if not p.strip())
 
                 native_text_too_small = len(native_text) < 500
@@ -365,9 +370,7 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                     page_count > 0 and empty_native_pages / page_count > 0.5
                 )
 
-                should_fallback_to_ocr = (
-                    native_text_too_small or too_many_empty_pages
-                )
+                should_fallback_to_ocr = native_text_too_small or too_many_empty_pages
 
                 if should_fallback_to_ocr:
                     warnings.append(
@@ -395,14 +398,14 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                 extraction_method = "ocr"
                 cleaned_pages = [clean_text(p) for p in page_texts]
 
-            full_text = "\n\n".join([p for p in cleaned_pages if p.strip()])
+            full_text = "\n\n".join(p for p in cleaned_pages if p.strip())
             text_extracted = has_valid_text(full_text)
 
             artifact_count = sum(full_text.count(a) for a in pdf_artifacts)
             artifact_ratio = artifact_count / max(len(full_text), 1)
 
             if extraction_method == "native":
-                if artifact_ratio > 0.01:
+                if artifact_ratio > 0.03:
                     warnings.append(
                         "Текстовый слой PDF-файла содержит артефакты; качество извлечения может быть ограничено."
                     )
@@ -419,53 +422,6 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
 
             pages = []
             page_scores = []
-
-            for i, page_text in enumerate(cleaned_pages):
-                page_conf = page_confidences[i] if i < len(page_confidences) else None
-
-                page_score = compute_page_quality_score(
-                    text=page_text,
-                    extraction_method=extraction_method,
-                    confidence=page_conf,
-                )
-
-                page_artifact_count = sum(page_text.count(a) for a in pdf_artifacts)
-                page_artifact_ratio = page_artifact_count / max(len(page_text), 1)
-
-                page_suspicious_words = count_suspicious_words(page_text)
-
-                page_has_formula_like_content = any(
-                    marker in page_text.lower()
-                    for marker in formula_markers
-                )
-
-                if extraction_method == "native":
-                    if page_artifact_ratio > 0.01:
-                        page_score = max(0, page_score - 10)
-
-                    if page_suspicious_words > 10:
-                        page_score = max(0, page_score - 10)
-
-                    if page_has_formula_like_content:
-                        page_score = max(0, page_score - 10)
-
-                elif extraction_method == "ocr":
-                    if not has_valid_text(page_text):
-                        page_score = max(0, page_score - 20)
-
-                    if page_has_formula_like_content:
-                        page_score = max(0, page_score - 5)
-
-                page_scores.append(page_score)
-
-                pages.append(
-                    Page(
-                        page_num=i + 1,
-                        text=page_text,
-                        confidence=page_conf,
-                        quality_score=page_score,
-                    )
-                )
 
             if extraction_method == "ocr":
                 blocks = []
@@ -498,7 +454,6 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                     for block in blocks
                     if block.text.strip()
                 )
-
                 text_extracted = has_valid_text(full_text)
 
                 page_text_map = {}
@@ -506,17 +461,19 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                 for block in blocks:
                     page_text_map.setdefault(block.page_num, []).append(block.text.strip())
 
-                filtered_pages = []
-                filtered_page_scores = []
-
                 for page_num in range(1, page_count + 1):
-                    page_text = "\n\n".join(page_text_map.get(page_num, []))
+                    page_blocks = page_text_map.get(page_num)
 
-                    page_conf = (
-                        page_confidences[page_num - 1]
-                        if page_num - 1 < len(page_confidences)
-                        else None
-                    )
+                    if page_blocks:
+                        page_text = "\n\n".join(page_blocks)
+                    else:
+                        page_text = (
+                            cleaned_pages[page_num - 1]
+                            if page_num - 1 < len(cleaned_pages)
+                            else ""
+                        )
+
+                    page_conf = get_confidence(page_num - 1)
 
                     page_score = compute_page_quality_score(
                         text=page_text,
@@ -530,14 +487,14 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                     )
 
                     if not has_valid_text(page_text):
-                        page_score = max(0, page_score - 20)
+                        page_score = max(0, page_score - 10)
 
                     if page_has_formula_like_content:
-                        page_score = max(0, page_score - 5)
+                        page_score = max(0, page_score - 3)
 
-                    filtered_page_scores.append(page_score)
+                    page_scores.append(page_score)
 
-                    filtered_pages.append(
+                    pages.append(
                         Page(
                             page_num=page_num,
                             text=page_text,
@@ -546,11 +503,47 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                         )
                     )
 
-                pages = filtered_pages
-                page_scores = filtered_page_scores
-
             else:
                 blocks = build_blocks_from_pages(cleaned_pages)
+
+                for i, page_text in enumerate(cleaned_pages):
+                    page_conf = get_confidence(i)
+
+                    page_score = compute_page_quality_score(
+                        text=page_text,
+                        extraction_method="native",
+                        confidence=page_conf,
+                    )
+
+                    page_artifact_count = sum(page_text.count(a) for a in pdf_artifacts)
+                    page_artifact_ratio = page_artifact_count / max(len(page_text), 1)
+
+                    page_suspicious_words = count_suspicious_words(page_text)
+
+                    page_has_formula_like_content = any(
+                        marker in page_text.lower()
+                        for marker in formula_markers
+                    )
+
+                    if page_artifact_ratio > 0.03:
+                        page_score = max(0, page_score - 10)
+
+                    if page_suspicious_words > 10:
+                        page_score = max(0, page_score - 10)
+
+                    if page_has_formula_like_content:
+                        page_score = max(0, page_score - 5)
+
+                    page_scores.append(page_score)
+
+                    pages.append(
+                        Page(
+                            page_num=i + 1,
+                            text=page_text,
+                            confidence=page_conf,
+                            quality_score=page_score,
+                        )
+                    )
 
         except Exception as e:
             errors.append(f"PDF processing error: {type(e).__name__}: {str(e)}")
