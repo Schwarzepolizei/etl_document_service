@@ -326,13 +326,41 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
             page_ocr_data = []
             page_confidences = []
 
+            def count_suspicious_words(text: str) -> int:
+                return sum(
+                    1
+                    for word in text.split()
+                    if len(word) > 12 and not any(ch.isdigit() for ch in word)
+                )
+
+            def has_valid_text(text: str) -> bool:
+                valid_words = sum(1 for w in text.split() if len(w) > 2)
+                return valid_words > 20
+
+            pdf_artifacts = ["■■", "���", "□", "�"]
+
+            formula_markers = [
+                "формула",
+                "формулы",
+                "по формуле",
+                "(1)",
+                "(2)",
+                "(3)",
+                "(4)",
+                "(5)",
+                "(6)",
+                "(7)",
+                "(8)",
+                "(9)",
+            ]
+
             if has_text_layer:
                 cleaned_pages = [clean_text(p) for p in page_texts]
 
                 native_text = "\n\n".join([p for p in cleaned_pages if p.strip()])
                 empty_native_pages = sum(1 for p in cleaned_pages if not p.strip())
 
-                native_text_too_small = len(native_text) < 100
+                native_text_too_small = len(native_text) < 500
                 too_many_empty_pages = (
                     page_count > 0 and empty_native_pages / page_count > 0.5
                 )
@@ -368,44 +396,23 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                 cleaned_pages = [clean_text(p) for p in page_texts]
 
             full_text = "\n\n".join([p for p in cleaned_pages if p.strip()])
-            text_extracted = bool(full_text.strip())
+            text_extracted = has_valid_text(full_text)
 
-            pdf_artifacts = ["■■", "���", "□", "�"]
-            has_pdf_artifacts = any(a in full_text for a in pdf_artifacts)
-
-            suspicious_words_count = sum(
-                1
-                for word in full_text.split()
-                if len(word) > 12 and not any(ch.isdigit() for ch in word)
-            )
-
-            formula_markers = [
-                "формула",
-                "формулы",
-                "по формуле",
-                "(1)",
-                "(2)",
-                "(3)",
-                "(4)",
-                "(5)",
-                "(6)",
-                "(7)",
-                "(8)",
-                "(9)",
-            ]
-
-            has_formula_like_content = any(
-                marker in full_text.lower()
-                for marker in formula_markers
-            )
+            artifact_count = sum(full_text.count(a) for a in pdf_artifacts)
+            artifact_ratio = artifact_count / max(len(full_text), 1)
 
             if extraction_method == "native":
-                if has_pdf_artifacts or suspicious_words_count > 30:
+                if artifact_ratio > 0.01:
                     warnings.append(
                         "Текстовый слой PDF-файла содержит артефакты; качество извлечения может быть ограничено."
                     )
 
-                if has_formula_like_content:
+                if count_suspicious_words(full_text) > 30:
+                    warnings.append(
+                        "Текстовый слой PDF-файла содержит подозрительно длинные токены; качество извлечения может быть ограничено."
+                    )
+
+                if any(marker in full_text.lower() for marker in formula_markers):
                     warnings.append(
                         "PDF содержит формулы или похожий на формулы контент; извлечение формул может быть неполным."
                     )
@@ -422,15 +429,32 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                     confidence=page_conf,
                 )
 
+                page_artifact_count = sum(page_text.count(a) for a in pdf_artifacts)
+                page_artifact_ratio = page_artifact_count / max(len(page_text), 1)
+
+                page_suspicious_words = count_suspicious_words(page_text)
+
+                page_has_formula_like_content = any(
+                    marker in page_text.lower()
+                    for marker in formula_markers
+                )
+
                 if extraction_method == "native":
-                    if has_pdf_artifacts:
+                    if page_artifact_ratio > 0.01:
                         page_score = max(0, page_score - 10)
 
-                    if suspicious_words_count > 30:
+                    if page_suspicious_words > 10:
                         page_score = max(0, page_score - 10)
 
-                    if has_formula_like_content:
+                    if page_has_formula_like_content:
                         page_score = max(0, page_score - 10)
+
+                elif extraction_method == "ocr":
+                    if not has_valid_text(page_text):
+                        page_score = max(0, page_score - 20)
+
+                    if page_has_formula_like_content:
+                        page_score = max(0, page_score - 5)
 
                 page_scores.append(page_score)
 
@@ -474,7 +498,8 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                     for block in blocks
                     if block.text.strip()
                 )
-                text_extracted = bool(full_text.strip())
+
+                text_extracted = has_valid_text(full_text)
 
                 page_text_map = {}
 
@@ -486,6 +511,7 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
 
                 for page_num in range(1, page_count + 1):
                     page_text = "\n\n".join(page_text_map.get(page_num, []))
+
                     page_conf = (
                         page_confidences[page_num - 1]
                         if page_num - 1 < len(page_confidences)
@@ -497,6 +523,17 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
                         extraction_method="ocr",
                         confidence=page_conf,
                     )
+
+                    page_has_formula_like_content = any(
+                        marker in page_text.lower()
+                        for marker in formula_markers
+                    )
+
+                    if not has_valid_text(page_text):
+                        page_score = max(0, page_score - 20)
+
+                    if page_has_formula_like_content:
+                        page_score = max(0, page_score - 5)
 
                     filtered_page_scores.append(page_score)
 
@@ -517,6 +554,7 @@ def run_etl(file_name: str, file_bytes: bytes) -> ETLResponse:
 
         except Exception as e:
             errors.append(f"PDF processing error: {type(e).__name__}: {str(e)}")
+            
     elif file_type == "image":
         try:
             raw_text, _, avg_conf, ocr_data = parse_image(file_bytes)
