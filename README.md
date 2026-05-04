@@ -83,6 +83,7 @@ DELETE /rag/index
 - Управление документами
 
 ## 🏗️ Архитектура
+```bash
 ETL Pipeline
    ↓
 Blocks → Chunks
@@ -94,8 +95,10 @@ FAISS Index
 Retriever
    ↓
 Answer Builder
+```
 
 ## 📂 Структура проекта
+```bash
 app/
  ├── api/          # FastAPI роуты
  ├── parsers/      # Парсеры документов
@@ -107,6 +110,7 @@ app/
 
 ui.py              # Streamlit интерфейс
 main.py            # FastAPI entrypoint
+```
 
 ## 🧪 Запуск локально
 
